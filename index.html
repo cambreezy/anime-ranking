@@ -354,6 +354,76 @@
     }
     .community-loading { text-align: center; color: #6a6a8a; padding: 40px 20px; font-size: 14px; }
 
+    /* Profile Modal */
+    #profile-modal {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    #profile-modal.open { display: flex; }
+    .profile-box {
+      background: #16162a; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px; padding: 28px; width: 100%; max-width: 480px;
+      max-height: 85vh; overflow-y: auto; position: relative;
+    }
+    .profile-close {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none; color: #6a6a8a; font-size: 22px;
+      cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 8px;
+      transition: color 0.2s;
+    }
+    .profile-close:hover { color: #e8e8f0; }
+    .profile-name {
+      font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 3px;
+      background: linear-gradient(90deg, #e74c6f, #3498db);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 20px; padding-right: 40px;
+    }
+    .profile-section { margin-bottom: 22px; }
+    .profile-section-label {
+      font-size: 11px; color: #8888aa; letter-spacing: 1.5px; text-transform: uppercase;
+      font-weight: 600; margin-bottom: 10px;
+    }
+    .profile-stat-row {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .profile-stat {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px; padding: 10px 16px; flex: 1; min-width: 100px;
+    }
+    .profile-stat-val { font-size: 20px; font-weight: 700; color: #e8e8f0; }
+    .profile-stat-key { font-size: 11px; color: #6a6a8a; margin-top: 2px; }
+    .profile-fav {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,215,0,0.07); border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 12px; padding: 12px 16px;
+    }
+    .profile-fav-crown { font-size: 24px; }
+    .profile-fav-name { font-size: 16px; font-weight: 700; color: #FFD700; }
+    .profile-fav-sub { font-size: 12px; color: #8888aa; margin-top: 2px; }
+    .profile-mover-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .profile-mover-item:last-child { border-bottom: none; }
+    .profile-mover-badge {
+      font-size: 12px; font-weight: 700; border-radius: 6px;
+      padding: 2px 7px; white-space: nowrap;
+    }
+    .profile-mover-badge.up { background: rgba(52,211,153,0.15); color: #34d399; }
+    .profile-mover-badge.down { background: rgba(231,76,111,0.15); color: #e74c6f; }
+    .profile-mover-name { font-size: 13px; color: #c0c0d8; flex: 1; }
+    .profile-mover-ranks { font-size: 11px; color: #6a6a8a; }
+    .profile-latest-rankings { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .snap-name-link {
+      cursor: pointer; color: #e8e8f0; font-weight: 700;
+      text-decoration: underline; text-underline-offset: 3px;
+      text-decoration-color: rgba(255,255,255,0.2);
+      transition: text-decoration-color 0.2s;
+    }
+    .snap-name-link:hover { text-decoration-color: rgba(231,76,111,0.7); color: #e74c6f; }
+    #profile-loading { text-align: center; color: #6a6a8a; padding: 30px 0; font-size: 14px; }
+
     @media (max-width: 500px) {
       .battle-cards { flex-direction: column; }
       .battle-vs { display: none; }
@@ -361,6 +431,14 @@
   </style>
 </head>
 <body>
+<!-- Profile Modal -->
+<div id="profile-modal" onclick="if(event.target===this)closeProfile()">
+  <div class="profile-box">
+    <button class="profile-close" onclick="closeProfile()">×</button>
+    <div id="profile-content"><div id="profile-loading">Loading profile...</div></div>
+  </div>
+</div>
+
 <!-- Auth overlay -->
 <div id="auth-overlay">
   <h1>ANIME RANKINGS</h1>
@@ -1112,10 +1190,12 @@ async function loadCommunity() {
     const more = row.rankings.length > 5
       ? `<span style="font-size:12px;color:#6a6a8a;align-self:center">+${row.rankings.length - 5} more</span>` : '';
     const date = new Date(row.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const uid = row.user_id ? esc(row.user_id) : '';
+    const uname = esc(row.submitter_name || 'Anonymous');
     return `<div class="community-snap">
       <div class="community-snap-header">
         <div>
-          <span class="snap-label">${esc(row.submitter_name || 'Anonymous')}</span>
+          <span class="snap-name-link snap-label" onclick="showProfile('${uid}','${uname}')">${uname}</span>
           <span class="snap-meta">${esc(date)} · ${row.answered}/${row.total_matchups} matchups</span>
         </div>
       </div>
@@ -1176,6 +1256,130 @@ function flashMsg(id, text) {
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 function goToBattle() {
   switchTab('battle');
+}
+
+function closeProfile() {
+  document.getElementById('profile-modal').classList.remove('open');
+}
+
+async function showProfile(userId, displayName) {
+  const modal = document.getElementById('profile-modal');
+  const content = document.getElementById('profile-content');
+  content.innerHTML = '<div id="profile-loading">Loading profile...</div>';
+  modal.classList.add('open');
+
+  let query = db.from('anime_rankings').select('*');
+  if (userId) {
+    query = query.eq('user_id', userId);
+  } else {
+    query = query.eq('submitter_name', displayName);
+  }
+  query = query.order('submitted_at', { ascending: true });
+
+  const { data, error } = await query;
+
+  if (error || !data || data.length === 0) {
+    content.innerHTML = `<div class="profile-name">${displayName}</div><p style="color:#6a6a8a">No ranking data found.</p>`;
+    return;
+  }
+
+  // ── Compute stats ──────────────────────────────────────────────────────────
+
+  // Favorite pick: anime most often ranked #1
+  const topCounts = {};
+  data.forEach(row => {
+    const top = row.rankings.find(r => r.rank === 1);
+    if (top) topCounts[top.name] = (topCounts[top.name] || 0) + 1;
+  });
+  const favName = Object.keys(topCounts).sort((a,b) => topCounts[b]-topCounts[a])[0] || null;
+  const favCount = favName ? topCounts[favName] : 0;
+
+  // Top movers: compare first vs latest submission rank
+  const first = data[0].rankings;
+  const latest = data[data.length - 1].rankings;
+  const firstMap = {};
+  first.forEach(r => { firstMap[r.name] = r.rank; });
+  const latestMap = {};
+  latest.forEach(r => { latestMap[r.name] = r.rank; });
+
+  const movers = [];
+  Object.keys(firstMap).forEach(name => {
+    if (latestMap[name] !== undefined) {
+      const delta = firstMap[name] - latestMap[name]; // positive = moved up
+      if (Math.abs(delta) >= 1) movers.push({ name, delta, from: firstMap[name], to: latestMap[name] });
+    }
+  });
+  movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const topMovers = movers.slice(0, 5);
+
+  // Avg completion
+  const avgCompletion = data.reduce((s, r) => s + (r.answered / (r.total_matchups || 1)), 0) / data.length;
+
+  // Latest rankings (top 5)
+  const latestTop5 = latest.slice(0, 5);
+
+  // ── Build HTML ─────────────────────────────────────────────────────────────
+
+  const statsHtml = `
+    <div class="profile-stat-row">
+      <div class="profile-stat">
+        <div class="profile-stat-val">${data.length}</div>
+        <div class="profile-stat-key">Snapshots</div>
+      </div>
+      <div class="profile-stat">
+        <div class="profile-stat-val">${Math.round(avgCompletion * 100)}%</div>
+        <div class="profile-stat-key">Avg completion</div>
+      </div>
+      <div class="profile-stat">
+        <div class="profile-stat-val">${latest.length}</div>
+        <div class="profile-stat-key">Anime ranked</div>
+      </div>
+    </div>`;
+
+  const favHtml = favName ? `
+    <div class="profile-section">
+      <div class="profile-section-label">Favorite Pick</div>
+      <div class="profile-fav">
+        <div class="profile-fav-crown">👑</div>
+        <div>
+          <div class="profile-fav-name">${esc(favName)}</div>
+          <div class="profile-fav-sub">#1 in ${favCount} of ${data.length} snapshot${data.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+    </div>` : '';
+
+  const moversHtml = topMovers.length > 1 ? `
+    <div class="profile-section">
+      <div class="profile-section-label">Top Movers ${data.length > 1 ? `(first vs latest)` : ''}</div>
+      ${topMovers.map(m => `
+        <div class="profile-mover-item">
+          <span class="profile-mover-badge ${m.delta > 0 ? 'up' : 'down'}">${m.delta > 0 ? '▲' : '▼'} ${Math.abs(m.delta)}</span>
+          <span class="profile-mover-name">${esc(m.name)}</span>
+          <span class="profile-mover-ranks">#${m.from} → #${m.to}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  const latestHtml = `
+    <div class="profile-section">
+      <div class="profile-section-label">Current Top Rankings</div>
+      <div class="profile-latest-rankings">
+        ${latestTop5.map(r => {
+          const color = r.rank <= 3 ? ['#FFD700','#C0C0C0','#CD7F32'][r.rank-1] : '#6a6a8a';
+          return `<div class="snap-rank-item">
+            <span class="snap-rank-num" style="color:${color}">${r.rank}.</span>
+            <span class="snap-rank-name">${esc(r.name)}</span>
+          </div>`;
+        }).join('')}
+        ${latest.length > 5 ? `<span style="font-size:12px;color:#6a6a8a;align-self:center">+${latest.length - 5} more</span>` : ''}
+      </div>
+    </div>`;
+
+  content.innerHTML = `
+    <div class="profile-name">${displayName}</div>
+    ${statsHtml}
+    ${favHtml}
+    ${moversHtml}
+    ${latestHtml}`;
 }
 
 function switchTab(tab) {

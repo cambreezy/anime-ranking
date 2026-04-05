@@ -593,6 +593,12 @@
 
       <!-- Tab: H2H -->
       <div id="tab-h2h" class="tab-content" style="display:none">
+        <div class="lb-toggle-wrap">
+          <div class="lb-toggle">
+            <button class="lb-toggle-btn active" id="h2h-btn-mine" onclick="setH2HView('mine')">My Matchups</button>
+            <button class="lb-toggle-btn" id="h2h-btn-global" onclick="setH2HView('global')">Global</button>
+          </div>
+        </div>
         <div class="h2h-wrap">
           <table id="h2h-table" class="h2h-table"></table>
         </div>
@@ -648,6 +654,8 @@ let manageOpen = false;
 let activeTab = 'community';
 let lbView = 'mine';
 let globalLbCache = null;
+let h2hView = 'mine';
+let globalH2HCache = null;
 
 const POPULAR_ANIME = [
   "Naruto","Hunter X Hunter","JJK","Attack on Titan","Demon Slayer",
@@ -1079,6 +1087,7 @@ function setLbView(view) {
 }
 
 function renderH2H() {
+  if (h2hView === 'global') return;
   const table = document.getElementById('h2h-table');
   let html = '<thead><tr><th class="row-header"></th>';
   anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
@@ -1097,6 +1106,84 @@ function renderH2H() {
   });
   html += '</tbody>';
   table.innerHTML = html;
+}
+
+async function renderGlobalH2H() {
+  const table = document.getElementById('h2h-table');
+
+  if (!globalH2HCache) {
+    let html = '<thead><tr><th class="row-header"></th>';
+    anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
+    html += '</tr></thead><tbody>';
+    html += `<tr><td colspan="${anime.length + 1}" style="text-align:center;color:#6a6a8a;padding:40px;font-size:14px">Loading global matchups…</td></tr>`;
+    html += '</tbody>';
+    table.innerHTML = html;
+
+    const { data, error } = await db
+      .from('anime_rankings')
+      .select('matchup_results, answered, total_matchups')
+      .not('matchup_results', 'is', null);
+
+    if (error || !data) {
+      table.innerHTML = `<tr><td style="text-align:center;color:#6a6a8a;padding:40px;font-size:14px">Could not load global matchups.</td></tr>`;
+      return;
+    }
+
+    const complete = data.filter(r => r.answered === r.total_matchups && r.total_matchups >= 2);
+
+    // Aggregate votes per matchup key
+    const counts = {};
+    complete.forEach(row => {
+      if (!row.matchup_results) return;
+      Object.entries(row.matchup_results).forEach(([key, winner]) => {
+        if (!counts[key]) counts[key] = { total: 0, votes: {} };
+        counts[key].total++;
+        counts[key].votes[winner] = (counts[key].votes[winner] || 0) + 1;
+      });
+    });
+    globalH2HCache = { counts, numSubmissions: complete.length };
+  }
+
+  const { counts, numSubmissions } = globalH2HCache;
+
+  let html = '<thead><tr><th class="row-header"></th>';
+  anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  anime.forEach(row => {
+    html += `<tr><td class="row-label">${esc(row)}</td>`;
+    anime.forEach(col => {
+      if (row === col) { html += '<td class="self">—</td>'; return; }
+      const k = matchupKey(row, col);
+      const matchupData = counts[k];
+      if (!matchupData || matchupData.total === 0) {
+        html += '<td class="pending">·</td>';
+        return;
+      }
+      const rowVotes = matchupData.votes[row] || 0;
+      const pct = Math.round(rowVotes / matchupData.total * 100);
+      // hue: 0=red, 65=yellow, 130=green mapped from 0-100%
+      const hue = Math.round(pct * 1.3);
+      const bg = `hsla(${hue},80%,35%,0.3)`;
+      const color = `hsl(${hue},80%,72%)`;
+      html += `<td style="background:${bg};color:${color}">${pct}%</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function setH2HView(view) {
+  h2hView = view;
+  document.getElementById('h2h-btn-mine').classList.toggle('active', view === 'mine');
+  document.getElementById('h2h-btn-global').classList.toggle('active', view === 'global');
+  if (view === 'mine') {
+    renderH2H();
+  } else {
+    renderGlobalH2H();
+  }
 }
 
 function renderManageChips() {
@@ -1273,11 +1360,12 @@ function saveSnapshot() {
     total_matchups: snap.totalMatchups,
     answered: snap.answered,
     rankings: snap.rankings,
+    matchup_results: results,
     user_id: clerkUser ? clerkUser.id : null,
     submitter_name: submitterName,
   }).then(({ error }) => {
     if (error) console.error('Could not save to community:', error.message);
-    else { globalLbCache = null; loadUserHistoryFromDB().then(() => renderHistory()); }
+    else { globalLbCache = null; globalH2HCache = null; loadUserHistoryFromDB().then(() => renderHistory()); }
   });
 }
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anime Rankings</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0f0f1a; color: #e8e8f0; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
@@ -316,6 +317,27 @@
       margin-bottom: 16px; color: #8888aa;
     }
 
+    /* Auth overlay */
+    #auth-overlay {
+      position: fixed; inset: 0; background: #0f0f1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; gap: 24px;
+    }
+    #auth-overlay h1 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 5px;
+      background: linear-gradient(90deg, #e74c6f, #3498db);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    #auth-overlay p { color: #6a6a8a; font-size: 15px; }
+    #clerk-sign-in { min-width: 320px; }
+    #user-bar {
+      display: none; position: fixed; top: 12px; right: 16px; z-index: 999;
+      display: none; align-items: center; gap: 10px;
+    }
+    #user-bar.visible { display: flex; }
+    #user-greeting { font-size: 13px; color: #8888aa; }
+    #clerk-user-btn { min-width: 32px; }
+
     /* Community tab */
     .community-empty { text-align: center; padding: 60px 20px; color: #6a6a8a; }
     .community-empty .icon { font-size: 40px; margin-bottom: 16px; }
@@ -335,7 +357,20 @@
   </style>
 </head>
 <body>
-<div id="app">
+<!-- Auth overlay -->
+<div id="auth-overlay">
+  <h1>ANIME RANKINGS</h1>
+  <p>Sign in to rank your anime and see how you compare with others.</p>
+  <div id="clerk-sign-in"></div>
+</div>
+
+<!-- User bar (shown when signed in) -->
+<div id="user-bar">
+  <span id="user-greeting"></span>
+  <div id="clerk-user-btn"></div>
+</div>
+
+<div id="app" style="display:none">
 
   <!-- SETUP SCREEN -->
   <div id="setup-screen" class="screen active">
@@ -421,8 +456,7 @@
           <div class="manage-actions">
             <button class="btn-ghost red" onclick="resetMatchups()">Reset Matchups</button>
             <button class="btn-ghost grey" onclick="startOver()">← New List</button>
-            <input id="snapshot-name" class="text-input" placeholder="Your name (optional)" style="display:none;width:160px;flex-shrink:0" autocomplete="off" />
-            <button id="btn-save-snapshot" class="btn-snapshot" style="display:none" onclick="saveSnapshot()">📸 Save Snapshot</button>
+<button id="btn-save-snapshot" class="btn-snapshot" style="display:none" onclick="saveSnapshot()">📸 Save Snapshot</button>
             <button class="btn-ghost green" onclick="exportResults()">⬇ Export Results</button>
             <input type="file" id="import-file-main" accept=".json" style="display:none" onchange="importFile(event)" />
             <button class="btn-ghost blue" onclick="document.getElementById('import-file-main').click()">📂 Load Results</button>
@@ -649,6 +683,24 @@ function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
 }
 
+async function loadUserHistoryFromDB() {
+  if (!clerkUser) return;
+  const { data, error } = await db
+    .from('anime_rankings')
+    .select('*')
+    .eq('user_id', clerkUser.id)
+    .order('submitted_at', { ascending: false });
+  if (error || !data) return;
+  history = data.map(row => ({
+    date: row.submitted_at.slice(0, 10),
+    label: new Date(row.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    rankings: row.rankings,
+    totalMatchups: row.total_matchups,
+    answered: row.answered,
+  }));
+  saveHistory();
+}
+
 // ── Screen switching ───────────────────────────────────────────────────────────
 function showSetup() {
   document.getElementById('setup-screen').classList.add('active');
@@ -754,7 +806,6 @@ function renderAll() {
   // manage chips
   renderManageChips();
   document.getElementById('btn-save-snapshot').style.display = allDone ? '' : 'none';
-  document.getElementById('snapshot-name').style.display = allDone ? '' : 'none';
 
   // battle
   renderBattle(matchups, total, answered, allDone);
@@ -1010,16 +1061,19 @@ function saveSnapshot() {
   setTimeout(() => { doneMsg.textContent = ''; }, 2500);
 
   // Save to Supabase community DB
-  const nameInput = document.getElementById('snapshot-name');
-  const submitterName = (nameInput.value.trim() || 'Anonymous').slice(0, 50);
+  const submitterName = clerkUser
+    ? (clerkUser.fullName || clerkUser.username || clerkUser.primaryEmailAddress?.emailAddress || 'Anonymous').slice(0, 50)
+    : 'Anonymous';
   db.from('anime_rankings').insert({
     label: snap.label,
     total_matchups: snap.totalMatchups,
     answered: snap.answered,
     rankings: snap.rankings,
+    user_id: clerkUser ? clerkUser.id : null,
     submitter_name: submitterName,
   }).then(({ error }) => {
     if (error) console.error('Could not save to community:', error.message);
+    else loadUserHistoryFromDB().then(() => renderHistory());
   });
 }
 
@@ -1137,9 +1191,42 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-(function init() {
-  history = loadHistory();
+// ── Clerk + Init ───────────────────────────────────────────────────────────────
+let clerkUser = null;
+
+async function initApp() {
+  const clerk = new Clerk('pk_test_d2FudGVkLWh1c2t5LTUxLmNsZXJrLmFjY291bnRzLmRldiQ');
+  await clerk.load();
+
+  if (clerk.user) {
+    await onSignedIn(clerk);
+  } else {
+    // Mount sign-in widget
+    clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+    clerk.addListener(({ user }) => {
+      if (user) onSignedIn(clerk);
+    });
+  }
+}
+
+async function onSignedIn(clerk) {
+  clerkUser = clerk.user;
+
+  // Hide auth overlay, show app
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('app').style.display = '';
+
+  // Show user bar
+  const bar = document.getElementById('user-bar');
+  bar.classList.add('visible');
+  const name = clerkUser.fullName || clerkUser.username || clerkUser.primaryEmailAddress?.emailAddress || '';
+  document.getElementById('user-greeting').textContent = name ? 'Hi, ' + name : '';
+  clerk.mountUserButton(document.getElementById('clerk-user-btn'));
+
+  // Load history from Supabase for this user
+  await loadUserHistoryFromDB();
+
+  // Restore session or show setup
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -1153,10 +1240,11 @@ function esc(str) {
       }
     }
   } catch {}
-  // No saved session — show setup
   showSetup();
   initSetup();
-})();
+}
+
+initApp();
 </script>
 </body>
 </html>

@@ -5,7 +5,17 @@
       "Bash(npx --version)",
       "Bash(python3 -c \"import os; print\\(os.getcwd\\(\\)\\)\")",
       "Bash(cp \"/Users/lisabreinholt/Desktop/Claude/Anime Ranking/anime_rankings.html\" /tmp/anime_rankings.html)",
-      "Bash(/tmp/serve_anime.py:*)"
+      "Bash(/tmp/serve_anime.py:*)",
+      "Bash(gh repo:*)",
+      "Bash(git --version)",
+      "Bash(brew list:*)",
+      "Bash(brew install:*)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(/opt/homebrew/bin/brew install:*)",
+      "Bash(/opt/homebrew/bin/gh --version)",
+      "Bash(/opt/homebrew/bin/gh auth:*)",
+      "Bash(/opt/homebrew/bin/gh repo:*)"
     ]
   }
 }

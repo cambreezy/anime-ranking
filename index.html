@@ -376,51 +376,6 @@
 
 <div id="app" style="display:none">
 
-  <!-- SETUP SCREEN -->
-  <div id="setup-screen" class="screen active">
-    <div class="setup-inner">
-      <div class="setup-title">
-        <h1>ANIME RANKINGS</h1>
-        <p>Select the anime you've watched, then battle them head-to-head to find your #1.</p>
-      </div>
-
-      <!-- Selected list -->
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <div class="card-label" style="margin-bottom:0">Your List (<span id="selected-count">0</span>)</div>
-          <span id="matchup-count-label" style="font-size:12px;color:#6a6a8a;display:none"></span>
-        </div>
-        <div id="selected-tags">
-          <p class="empty-hint">Pick from below or add your own...</p>
-        </div>
-      </div>
-
-      <!-- Custom input -->
-      <div class="input-row">
-        <input id="custom-input" class="text-input" placeholder="Add an anime not listed below..." autocomplete="off" />
-        <button class="btn-add-custom" onclick="addCustom()">+ Add</button>
-      </div>
-
-      <!-- Popular picks -->
-      <div class="card">
-        <div class="card-label">Popular Anime</div>
-        <input id="search-input" class="text-input" placeholder="Filter..." style="width:100%;margin-bottom:14px" />
-        <div id="anime-chips" class="anime-chips"></div>
-      </div>
-
-      <!-- Start button -->
-      <div class="setup-actions">
-        <div id="setup-hint" class="setup-hint">Select at least 2 anime to start ranking</div>
-        <button id="btn-start" class="btn-start" style="display:none" onclick="startRanking()">START RANKING →</button>
-        <div>
-          <button id="btn-back-to-ranking" class="btn-load-setup" style="display:none" onclick="showMain()">← Back to Ranking</button>
-          <input type="file" id="import-file-setup" accept=".json" style="display:none" onchange="importFile(event)" />
-          <button class="btn-load-setup" onclick="document.getElementById('import-file-setup').click()">📂 Load Past Results</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- MAIN SCREEN -->
   <div id="main-screen" class="screen">
 
@@ -444,7 +399,7 @@
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="community" onclick="switchTab('community');loadCommunity()">Community</button>
-      <button class="tab-btn" data-tab="battle" onclick="switchTab('battle')">Battle</button>
+      <button class="tab-btn" data-tab="battle" onclick="goToBattle()">Battle</button>
       <button class="tab-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button class="tab-btn" data-tab="h2h" onclick="switchTab('h2h')">Head to Head</button>
       <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
@@ -475,14 +430,31 @@
 
       <!-- Tab: Battle -->
       <div id="tab-battle" class="tab-content">
-        <div id="battle-setup-prompt" class="battle-done" style="display:none">
-          <div class="trophy">⚔️</div>
-          <h2>SELECT YOUR ANIME</h2>
-          <p>Choose the anime you've watched to battle them head-to-head and find your #1.</p>
-          <div class="battle-done-btns">
-            <button class="btn-primary" onclick="showSetup()">Select Anime →</button>
+
+        <!-- Setup: shown when no anime list yet -->
+        <div id="battle-setup" style="display:none">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div class="card-label" style="margin-bottom:0">Your List (<span id="selected-count">0</span>)</div>
+              <span id="matchup-count-label" style="font-size:12px;color:#6a6a8a;display:none"></span>
+            </div>
+            <div id="selected-tags"><p class="empty-hint">Pick from below or add your own...</p></div>
+          </div>
+          <div class="input-row">
+            <input id="custom-input" class="text-input" placeholder="Add an anime not listed below..." autocomplete="off" />
+            <button class="btn-add-custom" onclick="addCustom()">+ Add</button>
+          </div>
+          <div class="card">
+            <div class="card-label">Popular Anime</div>
+            <input id="search-input" class="text-input" placeholder="Filter..." style="width:100%;margin-bottom:14px" />
+            <div id="anime-chips" class="anime-chips"></div>
+          </div>
+          <div class="setup-actions">
+            <div id="setup-hint" class="setup-hint">Select at least 2 anime to start ranking</div>
+            <button id="btn-start" class="btn-start" style="display:none" onclick="startRanking()">START RANKING →</button>
           </div>
         </div>
+
         <div id="battle-done" class="battle-done" style="display:none">
           <div class="trophy">🏆</div>
           <h2>ALL MATCHUPS COMPLETE</h2>
@@ -723,17 +695,7 @@ async function loadUserHistoryFromDB() {
 }
 
 // ── Screen switching ───────────────────────────────────────────────────────────
-function showSetup() {
-  document.getElementById('setup-screen').classList.add('active');
-  document.getElementById('main-screen').classList.remove('active');
-  document.getElementById('setup-screen').style.display = 'flex';
-  document.getElementById('main-screen').style.display = 'none';
-  const backBtn = document.getElementById('btn-back-to-ranking');
-  if (backBtn) backBtn.style.display = anime.length >= 2 ? 'inline-block' : 'none';
-}
-
 function showMain(tab = 'community') {
-  document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
   saveState();
   renderAll();
@@ -849,17 +811,17 @@ function renderAll() {
 }
 
 function renderBattle(matchups, total, answered, allDone) {
-  const prompt = document.getElementById('battle-setup-prompt');
+  const setup = document.getElementById('battle-setup');
   const done = document.getElementById('battle-done');
   const active = document.getElementById('battle-active');
 
   if (anime.length === 0) {
-    prompt.style.display = '';
+    setup.style.display = '';
     done.style.display = 'none';
     active.style.display = 'none';
     return;
   }
-  prompt.style.display = 'none';
+  setup.style.display = 'none';
 
   if (allDone) {
     done.style.display = '';
@@ -1064,11 +1026,18 @@ function resetMatchups() {
 
 function startOver() {
   manageOpen = false;
+  document.getElementById('manage-panel').classList.remove('open');
+  document.getElementById('btn-manage').classList.remove('active');
+  anime = [];
+  results = {};
+  currentIdx = 0;
   setupSelected = [];
+  saveState();
   renderSelectedTags();
   renderChips('');
   updateStartBtn();
-  showSetup();
+  renderAll();
+  switchTab('battle');
 }
 
 function saveSnapshot() {
@@ -1205,6 +1174,10 @@ function flashMsg(id, text) {
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
+function goToBattle() {
+  switchTab('battle');
+}
+
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1258,18 +1231,6 @@ async function onSignedIn(clerk) {
   // Load history from Supabase for this user
   await loadUserHistoryFromDB();
 
-  // Restore session if available
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const d = JSON.parse(saved);
-      if (d.anime && d.anime.length >= 2) {
-        anime = d.anime;
-        results = d.results || {};
-        currentIdx = d.currentIdx || 0;
-      }
-    }
-  } catch {}
   initSetup();
   showMain();
 }

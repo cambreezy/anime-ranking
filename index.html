@@ -413,6 +413,7 @@
         <div id="setup-hint" class="setup-hint">Select at least 2 anime to start ranking</div>
         <button id="btn-start" class="btn-start" style="display:none" onclick="startRanking()">START RANKING →</button>
         <div>
+          <button id="btn-back-to-ranking" class="btn-load-setup" style="display:none" onclick="showMain()">← Back to Ranking</button>
           <input type="file" id="import-file-setup" accept=".json" style="display:none" onchange="importFile(event)" />
           <button class="btn-load-setup" onclick="document.getElementById('import-file-setup').click()">📂 Load Past Results</button>
         </div>
@@ -716,6 +717,8 @@ function showSetup() {
   document.getElementById('main-screen').classList.remove('active');
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('main-screen').style.display = 'none';
+  const backBtn = document.getElementById('btn-back-to-ranking');
+  if (backBtn) backBtn.style.display = anime.length >= 2 ? 'inline-block' : 'none';
 }
 
 function showMain() {
@@ -1035,10 +1038,6 @@ function resetMatchups() {
 }
 
 function startOver() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-  anime = [];
-  results = {};
-  currentIdx = 0;
   manageOpen = false;
   setupSelected = [];
   renderSelectedTags();

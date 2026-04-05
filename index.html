@@ -316,6 +316,18 @@
       margin-bottom: 16px; color: #8888aa;
     }
 
+    /* Community tab */
+    .community-empty { text-align: center; padding: 60px 20px; color: #6a6a8a; }
+    .community-empty .icon { font-size: 40px; margin-bottom: 16px; }
+    .community-snap {
+      background: rgba(255,255,255,0.03); border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06); padding: 16px; margin-bottom: 12px;
+    }
+    .community-snap-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .community-loading { text-align: center; color: #6a6a8a; padding: 40px 20px; font-size: 14px; }
+
     @media (max-width: 500px) {
       .battle-cards { flex-direction: column; }
       .battle-vs { display: none; }
@@ -392,6 +404,7 @@
       <button class="tab-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button class="tab-btn" data-tab="h2h" onclick="switchTab('h2h')">Head to Head</button>
       <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
+      <button class="tab-btn" data-tab="community" onclick="switchTab('community');loadCommunity()">Community</button>
       <div class="tab-spacer"></div>
       <button id="btn-manage" class="btn-manage" onclick="toggleManage()">⚙ Manage</button>
     </div>
@@ -408,6 +421,7 @@
           <div class="manage-actions">
             <button class="btn-ghost red" onclick="resetMatchups()">Reset Matchups</button>
             <button class="btn-ghost grey" onclick="startOver()">← New List</button>
+            <input id="snapshot-name" class="text-input" placeholder="Your name (optional)" style="display:none;width:160px;flex-shrink:0" autocomplete="off" />
             <button id="btn-save-snapshot" class="btn-snapshot" style="display:none" onclick="saveSnapshot()">📸 Save Snapshot</button>
             <button class="btn-ghost green" onclick="exportResults()">⬇ Export Results</button>
             <input type="file" id="import-file-main" accept=".json" style="display:none" onchange="importFile(event)" />
@@ -457,6 +471,17 @@
         </div>
       </div>
 
+      <!-- Tab: Community -->
+      <div id="tab-community" class="tab-content" style="display:none">
+        <div id="community-loading" class="community-loading">Loading community rankings...</div>
+        <div id="community-empty" class="community-empty" style="display:none">
+          <div class="icon">🌐</div>
+          <p style="font-size:15px">No community rankings yet.</p>
+          <p style="font-size:13px;margin-top:8px">Be the first! Complete your matchups and save a snapshot.</p>
+        </div>
+        <div id="community-list"></div>
+      </div>
+
       <!-- Tab: History -->
       <div id="tab-history" class="tab-content" style="display:none">
         <div id="history-empty" class="history-empty" style="display:none">
@@ -475,7 +500,13 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+// ── Supabase ───────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://tftogzjerdsvlqqwlirj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmdG9nemplcmRzdmxxcXdsaXJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjM3NDUsImV4cCI6MjA5MDkzOTc0NX0.sAWQ0ciV_RI7mbaFXhgMPsWAcKkXRmdNeJOtVOVtLAA';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ── State ──────────────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'anime-rankings-v3';
 const HISTORY_KEY = 'anime-rankings-history-v3';
@@ -723,6 +754,7 @@ function renderAll() {
   // manage chips
   renderManageChips();
   document.getElementById('btn-save-snapshot').style.display = allDone ? '' : 'none';
+  document.getElementById('snapshot-name').style.display = allDone ? '' : 'none';
 
   // battle
   renderBattle(matchups, total, answered, allDone);
@@ -976,6 +1008,64 @@ function saveSnapshot() {
   doneMsg.style.fontWeight = '600';
   doneMsg.textContent = '✓ Snapshot saved to History!';
   setTimeout(() => { doneMsg.textContent = ''; }, 2500);
+
+  // Save to Supabase community DB
+  const nameInput = document.getElementById('snapshot-name');
+  const submitterName = (nameInput.value.trim() || 'Anonymous').slice(0, 50);
+  db.from('anime_rankings').insert({
+    label: snap.label,
+    total_matchups: snap.totalMatchups,
+    answered: snap.answered,
+    rankings: snap.rankings,
+    submitter_name: submitterName,
+  }).then(({ error }) => {
+    if (error) console.error('Could not save to community:', error.message);
+  });
+}
+
+async function loadCommunity() {
+  const loading = document.getElementById('community-loading');
+  const empty = document.getElementById('community-empty');
+  const list = document.getElementById('community-list');
+
+  loading.style.display = '';
+  empty.style.display = 'none';
+  list.innerHTML = '';
+
+  const { data, error } = await db
+    .from('anime_rankings')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+    .limit(50);
+
+  loading.style.display = 'none';
+
+  if (error || !data || data.length === 0) {
+    empty.style.display = '';
+    return;
+  }
+
+  list.innerHTML = data.map(row => {
+    const top5 = row.rankings.slice(0, 5).map(r => {
+      const color = r.rank <= 3 ? ['#FFD700','#C0C0C0','#CD7F32'][r.rank - 1] : '#6a6a8a';
+      return `<div class="snap-rank-item">
+        <span class="snap-rank-num" style="color:${color}">${r.rank}.</span>
+        <span class="snap-rank-name">${esc(r.name)}</span>
+      </div>`;
+    }).join('');
+    const more = row.rankings.length > 5
+      ? `<span style="font-size:12px;color:#6a6a8a;align-self:center">+${row.rankings.length - 5} more</span>` : '';
+    const date = new Date(row.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `<div class="community-snap">
+      <div class="community-snap-header">
+        <div>
+          <span class="snap-label">${esc(row.submitter_name || 'Anonymous')}</span>
+          <span class="snap-meta">${esc(date)} · ${row.answered}/${row.total_matchups} matchups</span>
+        </div>
+      </div>
+      <div class="snap-rankings">${top5}${more}</div>
+    </div>`;
+  }).join('');
 }
 
 function exportResults() {

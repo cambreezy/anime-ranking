@@ -429,22 +429,25 @@
         <h1>ANIME RANKINGS</h1>
         <div class="header-sub" id="header-sub">0 SHOWS · 0 MATCHUPS</div>
       </div>
-      <svg class="progress-ring" width="44" height="44" style="transform:rotate(-90deg)">
-        <circle class="ring-bg" cx="22" cy="22" r="18"/>
-        <circle id="ring-fill" class="ring-fill" cx="22" cy="22" r="18"
-          stroke-dasharray="113.1" stroke-dashoffset="113.1"/>
-        <text id="ring-text" class="ring-text" x="22" y="22"
-          text-anchor="middle" dominant-baseline="central"
-          style="transform:rotate(90deg);transform-origin:22px 22px">0%</text>
-      </svg>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="switchTab('community');loadCommunity()" title="Community" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#8888aa;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='#e8e8f0'" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='#8888aa'">⌂</button>
+        <svg class="progress-ring" width="44" height="44" style="transform:rotate(-90deg)">
+          <circle class="ring-bg" cx="22" cy="22" r="18"/>
+          <circle id="ring-fill" class="ring-fill" cx="22" cy="22" r="18"
+            stroke-dasharray="113.1" stroke-dashoffset="113.1"/>
+          <text id="ring-text" class="ring-text" x="22" y="22"
+            text-anchor="middle" dominant-baseline="central"
+            style="transform:rotate(90deg);transform-origin:22px 22px">0%</text>
+        </svg>
+      </div>
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="battle" onclick="switchTab('battle')">Battle</button>
+      <button class="tab-btn active" data-tab="community" onclick="switchTab('community');loadCommunity()">Community</button>
+      <button class="tab-btn" data-tab="battle" onclick="switchTab('battle')">Battle</button>
       <button class="tab-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button class="tab-btn" data-tab="h2h" onclick="switchTab('h2h')">Head to Head</button>
       <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
-      <button class="tab-btn" data-tab="community" onclick="switchTab('community');loadCommunity()">Community</button>
       <div class="tab-spacer"></div>
       <button id="btn-manage" class="btn-manage" onclick="toggleManage()">⚙ Manage</button>
     </div>
@@ -472,6 +475,14 @@
 
       <!-- Tab: Battle -->
       <div id="tab-battle" class="tab-content">
+        <div id="battle-setup-prompt" class="battle-done" style="display:none">
+          <div class="trophy">⚔️</div>
+          <h2>SELECT YOUR ANIME</h2>
+          <p>Choose the anime you've watched to battle them head-to-head and find your #1.</p>
+          <div class="battle-done-btns">
+            <button class="btn-primary" onclick="showSetup()">Select Anime →</button>
+          </div>
+        </div>
         <div id="battle-done" class="battle-done" style="display:none">
           <div class="trophy">🏆</div>
           <h2>ALL MATCHUPS COMPLETE</h2>
@@ -557,7 +568,7 @@ let history = [];
 let lastAction = null;
 let undoTimer = null;
 let manageOpen = false;
-let activeTab = 'battle';
+let activeTab = 'community';
 
 const POPULAR_ANIME = [
   "Naruto","Hunter X Hunter","JJK","Attack on Titan","Demon Slayer",
@@ -679,7 +690,7 @@ function startRanking() {
   results = {};
   currentIdx = 0;
   history = loadHistory();
-  showMain();
+  showMain('battle');
 }
 
 // ── Storage ────────────────────────────────────────────────────────────────────
@@ -721,12 +732,17 @@ function showSetup() {
   if (backBtn) backBtn.style.display = anime.length >= 2 ? 'inline-block' : 'none';
 }
 
-function showMain() {
+function showMain(tab = 'community') {
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
   saveState();
   renderAll();
-  switchTab('battle');
+  if (tab === 'community') {
+    switchTab('community');
+    loadCommunity();
+  } else {
+    switchTab(tab);
+  }
 }
 
 // ── Matchup helpers ────────────────────────────────────────────────────────────
@@ -833,8 +849,17 @@ function renderAll() {
 }
 
 function renderBattle(matchups, total, answered, allDone) {
+  const prompt = document.getElementById('battle-setup-prompt');
   const done = document.getElementById('battle-done');
   const active = document.getElementById('battle-active');
+
+  if (anime.length === 0) {
+    prompt.style.display = '';
+    done.style.display = 'none';
+    active.style.display = 'none';
+    return;
+  }
+  prompt.style.display = 'none';
 
   if (allDone) {
     done.style.display = '';
@@ -1158,7 +1183,7 @@ function importFile(e) {
       history = data.history || [];
       saveState();
       saveHistory();
-      showMain();
+      showMain('battle');
     } catch { alert('Could not read that file.'); }
   };
   reader.readAsText(file);
@@ -1233,7 +1258,7 @@ async function onSignedIn(clerk) {
   // Load history from Supabase for this user
   await loadUserHistoryFromDB();
 
-  // Restore session or show setup
+  // Restore session if available
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -1242,13 +1267,11 @@ async function onSignedIn(clerk) {
         anime = d.anime;
         results = d.results || {};
         currentIdx = d.currentIdx || 0;
-        showMain();
-        return;
       }
     }
   } catch {}
-  showSetup();
   initSetup();
+  showMain();
 }
 
 initApp();

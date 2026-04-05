@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anime Rankings</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f0f1a; color: #e8e8f0; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f0f1a; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    /* ── Layout ── */
+    #app { min-height: 100vh; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Setup Screen ── */
+    #setup-screen { display: flex; flex-direction: column; align-items: center; padding: 40px 24px; }
+    .setup-inner { max-width: 700px; width: 100%; }
+    .setup-title { text-align: center; margin-bottom: 36px; }
+    .setup-title h1 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 5px;
+      background: linear-gradient(90deg, #e74c6f, #3498db);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .setup-title p { color: #6a6a8a; font-size: 15px; margin-top: 8px; }
+
+    .card {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 20px; margin-bottom: 20px;
+    }
+    .card-label {
+      font-size: 13px; color: #8888aa; letter-spacing: 1px; text-transform: uppercase;
+      font-weight: 600; margin-bottom: 14px;
+    }
+    .selected-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .selected-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 20px; padding: 5px 10px 5px 12px; font-size: 13px; font-weight: 500;
+    }
+    .selected-tag.popular { background: rgba(231,76,111,0.12); border: 1px solid rgba(231,76,111,0.25); }
+    .selected-tag.custom { background: rgba(52,152,219,0.12); border: 1px solid rgba(52,152,219,0.25); }
+    .remove-btn {
+      background: none; border: none; color: rgba(231,76,111,0.6);
+      cursor: pointer; font-size: 16px; line-height: 1; padding: 0;
+    }
+    .empty-hint { color: #4a4a6a; font-size: 14px; font-style: italic; }
+
+    .input-row { display: flex; gap: 8px; margin-bottom: 20px; }
+    .text-input {
+      flex: 1; padding: 12px 16px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+      color: #e8e8f0; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none;
+    }
+    .text-input:focus { border-color: rgba(255,255,255,0.25); }
+    .text-input::placeholder { color: #4a4a6a; }
+    .btn-add-custom {
+      padding: 12px 22px; border-radius: 10px; border: none;
+      background: #3498db; color: #fff; font-weight: 700; cursor: pointer;
+      font-size: 14px; font-family: 'DM Sans', sans-serif; transition: opacity 0.2s;
+    }
+    .btn-add-custom:hover { opacity: 0.85; }
+
+    .anime-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .anime-chip {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 6px 14px; font-size: 13px; color: #c0c0d8;
+      cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 500;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .anime-chip:hover { background: rgba(231,76,111,0.15); border-color: rgba(231,76,111,0.3); }
+    .no-matches { color: #4a4a6a; font-size: 13px; }
+
+    .setup-actions { text-align: center; margin-top: 28px; }
+    .btn-start {
+      padding: 16px 48px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, #e74c6f, #c0392b); color: #fff;
+      font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px;
+      cursor: pointer; box-shadow: 0 4px 24px rgba(231,76,111,0.3);
+      transition: transform 0.2s;
+    }
+    .btn-start:hover { transform: scale(1.04); }
+    .setup-hint { color: #6a6a8a; font-size: 14px; }
+    .btn-load-setup {
+      margin-top: 20px; background: none; border: 1px solid rgba(255,255,255,0.12);
+      color: #6a6a8a; padding: 10px 22px; border-radius: 10px;
+      cursor: pointer; font-size: 14px; font-family: 'DM Sans', sans-serif;
+      font-weight: 600; transition: all 0.2s; display: inline-block;
+    }
+    .btn-load-setup:hover { border-color: rgba(255,255,255,0.25); color: #e8e8f0; }
+
+    /* ── Main Screen ── */
+    #main-screen { display: none; }
+    #main-screen.active { display: block; }
+
+    .header {
+      padding: 28px 24px 0; max-width: 900px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .header h1 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 36px; letter-spacing: 4px;
+      background: linear-gradient(90deg, #e74c6f, #3498db);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-sub { margin-top: 4px; font-size: 13px; color: #6a6a8a; letter-spacing: 1px; }
+
+    /* Progress ring */
+    .progress-ring { flex-shrink: 0; }
+    .ring-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 3; }
+    .ring-fill {
+      fill: none; stroke: #e74c6f; stroke-width: 3;
+      stroke-linecap: round; transition: stroke-dashoffset 0.5s ease;
+    }
+    .ring-text { fill: #e8e8f0; font-size: 11px; font-weight: 700; font-family: 'DM Sans', sans-serif; }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 4px; max-width: 900px; margin: 20px auto 0; padding: 0 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; align-items: flex-end;
+    }
+    .tab-btn {
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      color: #6a6a8a; padding: 10px 18px; font-size: 14px; font-weight: 600;
+      cursor: pointer; font-family: 'DM Sans', sans-serif;
+      border-radius: 8px 8px 0 0; transition: all 0.2s; letter-spacing: 0.5px;
+    }
+    .tab-btn.active { background: rgba(255,255,255,0.08); border-bottom-color: #e74c6f; color: #e8e8f0; }
+    .tab-spacer { flex: 1; }
+    .btn-manage {
+      background: transparent; border: 1px solid rgba(255,255,255,0.1);
+      color: #6a6a8a; padding: 6px 14px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s; margin-bottom: 2px;
+    }
+    .btn-manage.active { background: rgba(231,76,111,0.2); border-color: rgba(231,76,111,0.27); color: #e74c6f; }
+
+    /* Content */
+    .content { max-width: 900px; margin: 0 auto; padding: 20px 24px 40px; }
+
+    /* Manage panel */
+    #manage-panel { display: none; margin-bottom: 24px; }
+    #manage-panel.open { display: block; }
+    .manage-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+    .manage-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .manage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .manage-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.06); border-radius: 20px; padding: 5px 12px; font-size: 13px;
+    }
+    .manage-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn-ghost {
+      padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+      background: transparent; font-weight: 600; cursor: pointer; font-size: 13px;
+      font-family: 'DM Sans', sans-serif; transition: opacity 0.2s;
+    }
+    .btn-ghost:hover { opacity: 0.75; }
+    .btn-ghost.red { color: #e74c6f; }
+    .btn-ghost.grey { color: #8888aa; }
+    .btn-ghost.green { color: #2ecc71; }
+    .btn-ghost.blue { color: #3498db; }
+    .btn-snapshot {
+      padding: 8px 16px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, #e74c6f, #3498db); color: #fff;
+      font-weight: 700; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    }
+    .success-msg { color: #2ecc71; font-size: 13px; font-weight: 600; }
+
+    /* Battle tab */
+    .battle-done { text-align: center; padding: 60px 20px; }
+    .battle-done .trophy { font-size: 48px; margin-bottom: 16px; }
+    .battle-done h2 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 3px; margin-bottom: 8px;
+    }
+    .battle-done p { color: #6a6a8a; font-size: 15px; margin-bottom: 24px; }
+    .battle-done-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      padding: 12px 28px; border-radius: 10px; border: none;
+      background: linear-gradient(135deg, #e74c6f, #c0392b); color: #fff;
+      font-weight: 700; font-size: 15px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    }
+    .btn-secondary {
+      padding: 12px 28px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+      color: #e8e8f0; font-weight: 600; font-size: 15px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .btn-export-done {
+      padding: 12px 28px; border-radius: 10px;
+      border: 1px solid rgba(46,204,113,0.3); background: rgba(46,204,113,0.08);
+      color: #2ecc71; font-weight: 600; font-size: 15px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .battle-progress { text-align: center; font-size: 14px; color: #6a6a8a; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .battle-prompt {
+      text-align: center; font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+      color: #8888aa; letter-spacing: 4px; margin-bottom: 28px;
+    }
+    .battle-cards { display: flex; gap: 20px; align-items: stretch; }
+    .battle-vs {
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: #4a4a6a;
+      letter-spacing: 3px; flex-shrink: 0;
+    }
+    .battle-card {
+      flex: 1; min-height: 180px; border: none; border-radius: 16px; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px;
+      text-transform: uppercase; transition: all 0.25s cubic-bezier(.4,0,.2,1);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px 20px; text-align: center; line-height: 1.2; outline: 2px solid transparent;
+    }
+    .battle-card.left {
+      background: linear-gradient(135deg, rgba(231,76,111,0.13) 0%, rgba(192,57,43,0.13) 100%);
+      color: #d0d0e0;
+    }
+    .battle-card.left:hover {
+      background: linear-gradient(135deg, #e74c6f 0%, #c0392b 100%);
+      color: #fff; transform: scale(1.03);
+      box-shadow: 0 8px 32px rgba(231,76,111,0.27);
+      outline-color: #e74c6f;
+    }
+    .battle-card.right {
+      background: linear-gradient(135deg, rgba(52,152,219,0.13) 0%, rgba(44,62,154,0.13) 100%);
+      color: #d0d0e0;
+    }
+    .battle-card.right:hover {
+      background: linear-gradient(135deg, #3498db 0%, #2c3e9a 100%);
+      color: #fff; transform: scale(1.03);
+      box-shadow: 0 8px 32px rgba(52,152,219,0.27);
+      outline-color: #3498db;
+    }
+    .undo-row { text-align: center; margin-top: 20px; }
+    .btn-undo {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      color: #8888aa; padding: 8px 20px; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Leaderboard */
+    .lb-list { display: flex; flex-direction: column; gap: 6px; }
+    .lb-item {
+      display: flex; align-items: center; padding: 12px 16px;
+      background: rgba(255,255,255,0.03); border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-item.top { border-color: rgba(255,215,0,0.2); }
+    .rank-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 50%;
+      font-weight: 800; font-size: 14px; margin-right: 12px; flex-shrink: 0;
+    }
+    .lb-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .lb-bar-wrap { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .lb-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .lb-score {
+      margin-left: 16px; font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px; letter-spacing: 1px; color: #8888aa; min-width: 60px; text-align: right;
+    }
+    .lb-partial { text-align: center; color: #6a6a8a; font-size: 13px; margin-top: 16px; }
+
+    /* H2H table */
+    .h2h-wrap { overflow-x: auto; padding-bottom: 8px; }
+    .h2h-table {
+      border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 11px;
+    }
+    .h2h-table th { padding: 6px 4px; color: #8888aa; font-weight: 600; }
+    .h2h-table th.row-header {
+      text-align: left; position: sticky; left: 0; background: #0f0f1a; z-index: 2;
+    }
+    .h2h-table th.col-header {
+      writing-mode: vertical-rl; text-orientation: mixed; height: 90px; white-space: nowrap;
+    }
+    .h2h-table td {
+      text-align: center; padding: 4px; border-radius: 4px;
+      font-weight: 700; font-size: 13px; min-width: 32px;
+    }
+    .h2h-table td.row-label {
+      padding: 6px 10px 6px 6px; font-weight: 600; color: #c0c0d8;
+      white-space: nowrap; position: sticky; left: 0; background: #0f0f1a; z-index: 1; font-size: 12px;
+    }
+    .h2h-table td.self { background: rgba(255,255,255,0.02); color: #3a3a5a; }
+    .h2h-table td.win { background: rgba(46,204,113,0.15); color: #2ecc71; }
+    .h2h-table td.loss { background: rgba(231,76,111,0.1); color: #e74c6f; }
+    .h2h-table td.pending { background: rgba(255,255,255,0.02); color: #3a3a5a; }
+
+    /* History */
+    .history-empty { text-align: center; padding: 60px 20px; color: #6a6a8a; }
+    .history-empty .icon { font-size: 40px; margin-bottom: 16px; }
+    .history-snap {
+      background: rgba(255,255,255,0.03); border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06); padding: 16px; margin-bottom: 12px;
+    }
+    .history-snap-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .snap-label { font-weight: 700; font-size: 15px; }
+    .snap-meta { color: #6a6a8a; font-size: 12px; margin-left: 12px; }
+    .snap-delete {
+      background: none; border: none; color: rgba(231,76,111,0.27);
+      cursor: pointer; font-size: 18px; padding: 2px 6px;
+    }
+    .snap-rankings { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .snap-rank-item { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    .snap-rank-num { font-weight: 700; width: 20px; text-align: right; }
+    .snap-rank-name { color: #c0c0d8; }
+
+    .chart-wrap {
+      background: rgba(255,255,255,0.03); border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06); padding: 20px; margin-bottom: 24px;
+    }
+    .chart-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px;
+      margin-bottom: 16px; color: #8888aa;
+    }
+
+    @media (max-width: 500px) {
+      .battle-cards { flex-direction: column; }
+      .battle-vs { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SETUP SCREEN -->
+  <div id="setup-screen" class="screen active">
+    <div class="setup-inner">
+      <div class="setup-title">
+        <h1>ANIME RANKINGS</h1>
+        <p>Select the anime you've watched, then battle them head-to-head to find your #1.</p>
+      </div>
+
+      <!-- Selected list -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="card-label" style="margin-bottom:0">Your List (<span id="selected-count">0</span>)</div>
+          <span id="matchup-count-label" style="font-size:12px;color:#6a6a8a;display:none"></span>
+        </div>
+        <div id="selected-tags">
+          <p class="empty-hint">Pick from below or add your own...</p>
+        </div>
+      </div>
+
+      <!-- Custom input -->
+      <div class="input-row">
+        <input id="custom-input" class="text-input" placeholder="Add an anime not listed below..." autocomplete="off" />
+        <button class="btn-add-custom" onclick="addCustom()">+ Add</button>
+      </div>
+
+      <!-- Popular picks -->
+      <div class="card">
+        <div class="card-label">Popular Anime</div>
+        <input id="search-input" class="text-input" placeholder="Filter..." style="width:100%;margin-bottom:14px" />
+        <div id="anime-chips" class="anime-chips"></div>
+      </div>
+
+      <!-- Start button -->
+      <div class="setup-actions">
+        <div id="setup-hint" class="setup-hint">Select at least 2 anime to start ranking</div>
+        <button id="btn-start" class="btn-start" style="display:none" onclick="startRanking()">START RANKING →</button>
+        <div>
+          <input type="file" id="import-file-setup" accept=".json" style="display:none" onchange="importFile(event)" />
+          <button class="btn-load-setup" onclick="document.getElementById('import-file-setup').click()">📂 Load Past Results</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN SCREEN -->
+  <div id="main-screen" class="screen">
+
+    <div class="header">
+      <div>
+        <h1>ANIME RANKINGS</h1>
+        <div class="header-sub" id="header-sub">0 SHOWS · 0 MATCHUPS</div>
+      </div>
+      <svg class="progress-ring" width="44" height="44" style="transform:rotate(-90deg)">
+        <circle class="ring-bg" cx="22" cy="22" r="18"/>
+        <circle id="ring-fill" class="ring-fill" cx="22" cy="22" r="18"
+          stroke-dasharray="113.1" stroke-dashoffset="113.1"/>
+        <text id="ring-text" class="ring-text" x="22" y="22"
+          text-anchor="middle" dominant-baseline="central"
+          style="transform:rotate(90deg);transform-origin:22px 22px">0%</text>
+      </svg>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="battle" onclick="switchTab('battle')">Battle</button>
+      <button class="tab-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
+      <button class="tab-btn" data-tab="h2h" onclick="switchTab('h2h')">Head to Head</button>
+      <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
+      <div class="tab-spacer"></div>
+      <button id="btn-manage" class="btn-manage" onclick="toggleManage()">⚙ Manage</button>
+    </div>
+
+    <div class="content">
+      <!-- Manage panel -->
+      <div id="manage-panel">
+        <div class="manage-card">
+          <div class="manage-row">
+            <input id="new-anime-input" class="text-input" style="flex:1;min-width:180px" placeholder="Add anime..." autocomplete="off" />
+            <button class="btn-snapshot" style="padding:10px 20px;font-size:14px" onclick="manageAddAnime()">+ Add</button>
+          </div>
+          <div id="manage-chips" class="manage-chips"></div>
+          <div class="manage-actions">
+            <button class="btn-ghost red" onclick="resetMatchups()">Reset Matchups</button>
+            <button class="btn-ghost grey" onclick="startOver()">← New List</button>
+            <button id="btn-save-snapshot" class="btn-snapshot" style="display:none" onclick="saveSnapshot()">📸 Save Snapshot</button>
+            <button class="btn-ghost green" onclick="exportResults()">⬇ Export Results</button>
+            <input type="file" id="import-file-main" accept=".json" style="display:none" onchange="importFile(event)" />
+            <button class="btn-ghost blue" onclick="document.getElementById('import-file-main').click()">📂 Load Results</button>
+            <span id="manage-msg" class="success-msg" style="display:none"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Battle -->
+      <div id="tab-battle" class="tab-content">
+        <div id="battle-done" class="battle-done" style="display:none">
+          <div class="trophy">🏆</div>
+          <h2>ALL MATCHUPS COMPLETE</h2>
+          <p>Check the Leaderboard for your final rankings.</p>
+          <div class="battle-done-btns">
+            <button class="btn-primary" onclick="switchTab('leaderboard')">View Leaderboard</button>
+            <button class="btn-secondary" onclick="saveSnapshot()">📸 Save Snapshot</button>
+            <button class="btn-export-done" onclick="exportResults()">⬇ Export Results</button>
+          </div>
+          <div id="battle-done-msg" style="margin-top:12px"></div>
+        </div>
+        <div id="battle-active">
+          <div id="battle-progress" class="battle-progress"></div>
+          <div class="battle-prompt">WHICH DO YOU PREFER?</div>
+          <div class="battle-cards">
+            <button id="card-left" class="battle-card left" onclick="pick('left')"></button>
+            <div class="battle-vs">VS</div>
+            <button id="card-right" class="battle-card right" onclick="pick('right')"></button>
+          </div>
+          <div id="undo-row" class="undo-row" style="display:none">
+            <button class="btn-undo" onclick="undoPick()">↩ Undo last pick</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Leaderboard -->
+      <div id="tab-leaderboard" class="tab-content" style="display:none">
+        <div id="lb-list" class="lb-list"></div>
+        <div id="lb-partial" class="lb-partial" style="display:none"></div>
+      </div>
+
+      <!-- Tab: H2H -->
+      <div id="tab-h2h" class="tab-content" style="display:none">
+        <div class="h2h-wrap">
+          <table id="h2h-table" class="h2h-table"></table>
+        </div>
+      </div>
+
+      <!-- Tab: History -->
+      <div id="tab-history" class="tab-content" style="display:none">
+        <div id="history-empty" class="history-empty" style="display:none">
+          <div class="icon">📊</div>
+          <p style="font-size:15px">No snapshots yet.</p>
+          <p style="font-size:13px;margin-top:8px">Complete your matchups and save a snapshot to track rankings over time.</p>
+        </div>
+        <div id="chart-wrap" class="chart-wrap" style="display:none">
+          <div class="chart-title">RANKING OVER TIME</div>
+          <svg id="bump-chart" style="width:100%;height:auto"></svg>
+        </div>
+        <div id="history-snaps"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'anime-rankings-v3';
+const HISTORY_KEY = 'anime-rankings-history-v3';
+
+let anime = [];
+let results = {};
+let currentIdx = 0;
+let history = [];
+let lastAction = null;
+let undoTimer = null;
+let manageOpen = false;
+let activeTab = 'battle';
+
+const POPULAR_ANIME = [
+  "Naruto","Hunter X Hunter","JJK","Attack on Titan","Demon Slayer",
+  "Solo Leveling","One Punch Man","Vinland Saga","Frieren",
+  "Death Note","Fullmetal Alchemist: Brotherhood","Steins;Gate",
+  "Code Geass","My Hero Academia","Mob Psycho 100","Chainsaw Man",
+  "Spy x Family","Tokyo Ghoul","Cowboy Bebop","Neon Genesis Evangelion",
+  "Dragon Ball Z","One Piece","Bleach","Tower of God","Kaiju No.8",
+  "Invincible","Re:Zero","Sword Art Online","Black Clover","Haikyuu!!",
+  "Jojo's Bizarre Adventure","Mushoku Tensei","Dandadan","Blue Lock",
+  "Bocchi the Rock!","Oshi no Ko","Ranking of Kings",
+];
+
+const RANK_COLORS = [
+  "#FFD700","#C0C0C0","#CD7F32","#e74c6f","#3498db",
+  "#2ecc71","#e67e22","#9b59b6","#1abc9c","#e74c3c",
+  "#f39c12","#00cec9","#fd79a8","#6c5ce7","#00b894",
+  "#d63031","#0984e3","#fdcb6e","#b2bec3","#636e72",
+];
+
+// ── Setup: selected list ───────────────────────────────────────────────────────
+let setupSelected = [];
+
+function initSetup() {
+  renderSelectedTags();
+  renderChips('');
+  document.getElementById('search-input').addEventListener('input', e => renderChips(e.target.value));
+  document.getElementById('custom-input').addEventListener('keydown', e => { if (e.key === 'Enter') addCustom(); });
+  document.getElementById('new-anime-input').addEventListener('keydown', e => { if (e.key === 'Enter') manageAddAnime(); });
+}
+
+function toggleSetupAnime(name) {
+  if (setupSelected.includes(name)) {
+    setupSelected = setupSelected.filter(n => n !== name);
+  } else {
+    setupSelected.push(name);
+  }
+  renderSelectedTags();
+  renderChips(document.getElementById('search-input').value);
+  updateStartBtn();
+}
+
+function renderSelectedTags() {
+  const el = document.getElementById('selected-tags');
+  document.getElementById('selected-count').textContent = setupSelected.length;
+  const mc = setupSelected.length * (setupSelected.length - 1) / 2;
+  const mcLabel = document.getElementById('matchup-count-label');
+  if (setupSelected.length >= 2) {
+    mcLabel.style.display = '';
+    mcLabel.textContent = mc + ' matchup' + (mc !== 1 ? 's' : '');
+  } else {
+    mcLabel.style.display = 'none';
+  }
+  if (setupSelected.length === 0) {
+    el.innerHTML = '<p class="empty-hint">Pick from below or add your own...</p>';
+    return;
+  }
+  el.innerHTML = setupSelected.map(name => {
+    const cls = POPULAR_ANIME.includes(name) ? 'popular' : 'custom';
+    return `<span class="selected-tag ${cls}">${esc(name)}<button class="remove-btn" data-name="${esc(name)}">×</button></span>`;
+  }).join('');
+}
+
+function renderChips(search) {
+  const el = document.getElementById('anime-chips');
+  const filtered = POPULAR_ANIME.filter(a =>
+    a.toLowerCase().includes(search.toLowerCase()) && !setupSelected.includes(a)
+  );
+  if (filtered.length === 0 && search) {
+    el.innerHTML = '<span class="no-matches">No matches — use the field above to add it.</span>';
+    return;
+  }
+  el.innerHTML = filtered.map(name =>
+    `<button class="anime-chip" data-name="${esc(name)}">${esc(name)}</button>`
+  ).join('');
+}
+
+document.addEventListener('click', function(e) {
+  const chip = e.target.closest('.anime-chip');
+  if (chip) { toggleSetupAnime(chip.dataset.name); return; }
+  const removeBtn = e.target.closest('.remove-btn');
+  if (removeBtn && removeBtn.dataset.name) { toggleSetupAnime(removeBtn.dataset.name); return; }
+  if (removeBtn && removeBtn.dataset.manageName) { manageRemove(removeBtn.dataset.manageName); return; }
+  const snapDel = e.target.closest('.snap-delete');
+  if (snapDel) deleteSnap(parseInt(snapDel.dataset.idx));
+});
+
+function addCustom() {
+  const input = document.getElementById('custom-input');
+  const val = input.value.trim();
+  if (val && !setupSelected.includes(val)) {
+    setupSelected.push(val);
+    input.value = '';
+    renderSelectedTags();
+    renderChips(document.getElementById('search-input').value);
+    updateStartBtn();
+  }
+}
+
+function updateStartBtn() {
+  const hint = document.getElementById('setup-hint');
+  const btn = document.getElementById('btn-start');
+  if (setupSelected.length >= 2) {
+    hint.style.display = 'none';
+    btn.style.display = 'inline-block';
+  } else {
+    hint.style.display = '';
+    btn.style.display = 'none';
+  }
+}
+
+function startRanking() {
+  anime = [...setupSelected];
+  results = {};
+  currentIdx = 0;
+  history = loadHistory();
+  showMain();
+}
+
+// ── Storage ────────────────────────────────────────────────────────────────────
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ anime, results, currentIdx })); } catch {}
+}
+function saveHistory() {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+}
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+}
+
+// ── Screen switching ───────────────────────────────────────────────────────────
+function showSetup() {
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('main-screen').classList.remove('active');
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('main-screen').style.display = 'none';
+}
+
+function showMain() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  saveState();
+  renderAll();
+  switchTab('battle');
+}
+
+// ── Matchup helpers ────────────────────────────────────────────────────────────
+function generateMatchups(names) {
+  const m = [];
+  for (let i = 0; i < names.length; i++)
+    for (let j = i + 1; j < names.length; j++)
+      m.push([names[i], names[j]]);
+  return m;
+}
+
+function matchupKey(a, b) { return [a, b].sort().join(' vs '); }
+
+function computeLeaderboard() {
+  const wins = {};
+  anime.forEach(n => wins[n] = 0);
+  Object.values(results).forEach(w => { if (wins[w] !== undefined) wins[w]++; });
+  return anime.map(n => ({ name: n, wins: wins[n] })).sort((a, b) => b.wins - a.wins);
+}
+
+// ── Battle ─────────────────────────────────────────────────────────────────────
+function pick(side) {
+  const matchups = generateMatchups(anime);
+  if (currentIdx >= matchups.length) return;
+  const pair = matchups[currentIdx];
+  const winner = side === 'left' ? pair[0] : pair[1];
+  const k = matchupKey(pair[0], pair[1]);
+  const prev = results[k];
+  results[k] = winner;
+  lastAction = { key: k, prev, idx: currentIdx };
+  saveState();
+
+  // advance
+  const newResults = results;
+  let next = currentIdx + 1;
+  while (next < matchups.length && newResults[matchupKey(matchups[next][0], matchups[next][1])]) next++;
+  if (next >= matchups.length) {
+    for (let i = 0; i < matchups.length; i++) {
+      if (!newResults[matchupKey(matchups[i][0], matchups[i][1])]) { next = i; break; }
+    }
+  }
+  currentIdx = next;
+  saveState();
+  renderAll();
+  showUndo();
+}
+
+function showUndo() {
+  document.getElementById('undo-row').style.display = '';
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { document.getElementById('undo-row').style.display = 'none'; }, 3000);
+}
+
+function undoPick() {
+  if (!lastAction) return;
+  if (lastAction.prev) results[lastAction.key] = lastAction.prev;
+  else delete results[lastAction.key];
+  currentIdx = lastAction.idx;
+  lastAction = null;
+  document.getElementById('undo-row').style.display = 'none';
+  saveState();
+  renderAll();
+}
+
+// ── Render all ─────────────────────────────────────────────────────────────────
+function renderAll() {
+  const matchups = generateMatchups(anime);
+  const total = matchups.length;
+  const answered = Object.keys(results).length;
+  const progress = total > 0 ? answered / total : 0;
+  const allDone = answered >= total && total > 0;
+
+  // header
+  document.getElementById('header-sub').textContent = anime.length + ' SHOWS · ' + total + ' MATCHUPS';
+
+  // ring
+  const circ = 2 * Math.PI * 18;
+  document.getElementById('ring-fill').setAttribute('stroke-dashoffset', circ * (1 - progress));
+  document.getElementById('ring-text').textContent = Math.round(progress * 100) + '%';
+
+  // manage chips
+  renderManageChips();
+  document.getElementById('btn-save-snapshot').style.display = allDone ? '' : 'none';
+
+  // battle
+  renderBattle(matchups, total, answered, allDone);
+
+  // leaderboard
+  renderLeaderboard(total, answered);
+
+  // h2h
+  renderH2H();
+
+  // history
+  renderHistory();
+}
+
+function renderBattle(matchups, total, answered, allDone) {
+  const done = document.getElementById('battle-done');
+  const active = document.getElementById('battle-active');
+
+  if (allDone) {
+    done.style.display = '';
+    active.style.display = 'none';
+    return;
+  }
+  done.style.display = 'none';
+  active.style.display = '';
+
+  document.getElementById('battle-progress').textContent = 'Matchup ' + (answered + 1) + ' of ' + total;
+
+  if (currentIdx < matchups.length) {
+    document.getElementById('card-left').textContent = matchups[currentIdx][0];
+    document.getElementById('card-right').textContent = matchups[currentIdx][1];
+  }
+}
+
+function renderLeaderboard(total, answered) {
+  const lb = computeLeaderboard();
+  const maxWins = anime.length - 1;
+  const el = document.getElementById('lb-list');
+  el.innerHTML = lb.map((entry, i) => {
+    const pct = maxWins > 0 ? entry.wins / maxWins : 0;
+    const barColor = i === 0
+      ? 'linear-gradient(90deg,#FFD700,#e74c6f)'
+      : i === 1 ? 'linear-gradient(90deg,#C0C0C0,#8888aa)'
+      : i === 2 ? 'linear-gradient(90deg,#CD7F32,#e67e22)'
+      : 'linear-gradient(90deg,rgba(52,152,219,0.3),#3498db)';
+    const badgeStyle = i === 0
+      ? 'background:#FFD700;color:#1a1a2e;box-shadow:0 2px 8px #FFD70066'
+      : i === 1 ? 'background:#C0C0C0;color:#1a1a2e'
+      : i === 2 ? 'background:#CD7F32;color:#1a1a2e'
+      : 'background:rgba(255,255,255,0.07);color:#8888aa';
+    const badgeContent = i === 0 ? '👑' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+    return `<div class="lb-item${i === 0 ? ' top' : ''}">
+      <span class="rank-badge" style="${badgeStyle}">${badgeContent}</span>
+      <div style="flex:1;min-width:0">
+        <div class="lb-name">${esc(entry.name)}</div>
+        <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct*100}%;background:${barColor}"></div></div>
+      </div>
+      <div class="lb-score">${entry.wins}/${maxWins}</div>
+    </div>`;
+  }).join('');
+
+  const partial = document.getElementById('lb-partial');
+  if (answered < total) {
+    const rem = total - answered;
+    partial.style.display = '';
+    partial.textContent = '⚠ ' + rem + ' matchup' + (rem > 1 ? 's' : '') + ' remaining — rankings are partial';
+  } else {
+    partial.style.display = 'none';
+  }
+}
+
+function renderH2H() {
+  const table = document.getElementById('h2h-table');
+  let html = '<thead><tr><th class="row-header"></th>';
+  anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
+  html += '</tr></thead><tbody>';
+  anime.forEach(row => {
+    html += `<tr><td class="row-label">${esc(row)}</td>`;
+    anime.forEach(col => {
+      if (row === col) { html += '<td class="self">—</td>'; return; }
+      const k = matchupKey(row, col);
+      const winner = results[k];
+      if (winner === row) html += '<td class="win">W</td>';
+      else if (winner === col) html += '<td class="loss">L</td>';
+      else html += '<td class="pending">·</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function renderManageChips() {
+  const el = document.getElementById('manage-chips');
+  el.innerHTML = anime.map(a =>
+    `<span class="manage-chip">${esc(a)}${anime.length > 2
+      ? `<button class="remove-btn" data-manage-name="${esc(a)}">×</button>`
+      : ''}</span>`
+  ).join('');
+}
+
+function renderHistory() {
+  const snaps = document.getElementById('history-snaps');
+  const empty = document.getElementById('history-empty');
+  const chartWrap = document.getElementById('chart-wrap');
+
+  if (history.length === 0) {
+    empty.style.display = '';
+    chartWrap.style.display = 'none';
+    snaps.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // bump chart
+  if (history.length >= 2) {
+    chartWrap.style.display = '';
+    renderBumpChart();
+  } else {
+    chartWrap.style.display = 'none';
+  }
+
+  snaps.innerHTML = history.map((snap, hi) => {
+    const topRankings = snap.rankings.slice(0, 5).map(r => {
+      const color = r.rank <= 3 ? ['#FFD700','#C0C0C0','#CD7F32'][r.rank - 1] : '#6a6a8a';
+      return `<div class="snap-rank-item">
+        <span class="snap-rank-num" style="color:${color}">${r.rank}.</span>
+        <span class="snap-rank-name">${esc(r.name)}</span>
+      </div>`;
+    }).join('');
+    const more = snap.rankings.length > 5
+      ? `<span style="font-size:12px;color:#6a6a8a;align-self:center">+${snap.rankings.length - 5} more</span>` : '';
+    return `<div class="history-snap">
+      <div class="history-snap-header">
+        <div><span class="snap-label">${esc(snap.label)}</span><span class="snap-meta">${snap.answered}/${snap.totalMatchups} matchups</span></div>
+        <button class="snap-delete" data-idx="${hi}">×</button>
+      </div>
+      <div class="snap-rankings">${topRankings}${more}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderBumpChart() {
+  const reversed = [...history].reverse();
+  const allNames = new Set();
+  reversed.forEach(s => s.rankings.forEach(r => allNames.add(r.name)));
+  const names = [...allNames];
+  const maxRank = Math.max(...reversed.flatMap(s => s.rankings.map(r => r.rank)));
+  const count = reversed.length;
+  const W = Math.max(500, count * 120);
+  const H = maxRank * 28 + 60;
+  const innerW = W - 200;
+
+  let svg = '';
+  // grid lines
+  reversed.forEach((_, i) => {
+    const x = 100 + i * (innerW / Math.max(1, count - 1));
+    svg += `<line x1="${x}" y1="30" x2="${x}" y2="${maxRank * 28 + 40}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>`;
+    svg += `<text x="${x}" y="20" fill="#6a6a8a" font-size="10" text-anchor="middle" font-family="DM Sans">${esc(reversed[i].label)}</text>`;
+  });
+
+  names.forEach((name, si) => {
+    const color = RANK_COLORS[si % RANK_COLORS.length];
+    const points = reversed.map((snap, i) => {
+      const entry = snap.rankings.find(r => r.name === name);
+      if (!entry) return null;
+      return { x: 100 + i * (innerW / Math.max(1, count - 1)), y: 30 + (entry.rank - 1) * 28 + 14 };
+    }).filter(Boolean);
+    if (points.length === 0) return;
+
+    const polyPts = points.map(p => `${p.x},${p.y}`).join(' ');
+    svg += `<polyline points="${polyPts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>`;
+    points.forEach(p => {
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${color}" stroke="#0f0f1a" stroke-width="2"/>`;
+    });
+    const last = points[points.length - 1];
+    svg += `<text x="${last.x + 10}" y="${last.y + 4}" fill="${color}" font-size="10" font-family="DM Sans" font-weight="600">${esc(name)}</text>`;
+  });
+
+  const chart = document.getElementById('bump-chart');
+  chart.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  chart.innerHTML = svg;
+}
+
+// ── Manage actions ─────────────────────────────────────────────────────────────
+function toggleManage() {
+  manageOpen = !manageOpen;
+  document.getElementById('manage-panel').classList.toggle('open', manageOpen);
+  document.getElementById('btn-manage').classList.toggle('active', manageOpen);
+}
+
+function manageAddAnime() {
+  const input = document.getElementById('new-anime-input');
+  const val = input.value.trim();
+  if (!val || anime.includes(val)) return;
+  anime.push(val);
+  input.value = '';
+  saveState();
+  renderAll();
+}
+
+function manageRemove(name) {
+  if (anime.length <= 2) return;
+  anime = anime.filter(n => n !== name);
+  const newR = {};
+  Object.entries(results).forEach(([k, v]) => { if (!k.includes(name)) newR[k] = v; });
+  results = newR;
+  saveState();
+  renderAll();
+}
+
+function resetMatchups() {
+  results = {};
+  currentIdx = 0;
+  saveState();
+  renderAll();
+  switchTab('battle');
+}
+
+function startOver() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  anime = [];
+  results = {};
+  currentIdx = 0;
+  manageOpen = false;
+  setupSelected = [];
+  renderSelectedTags();
+  renderChips('');
+  updateStartBtn();
+  showSetup();
+}
+
+function saveSnapshot() {
+  const lb = computeLeaderboard();
+  const matchups = generateMatchups(anime);
+  const total = matchups.length;
+  const answered = Object.keys(results).length;
+  const snap = {
+    date: new Date().toISOString().slice(0, 10),
+    label: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    rankings: lb.map((x, i) => ({ rank: i + 1, name: x.name, wins: x.wins })),
+    totalMatchups: total, answered,
+  };
+  history = [snap, ...history];
+  saveHistory();
+  renderAll();
+  flashMsg('manage-msg', '✓ Saved!');
+  const doneMsg = document.getElementById('battle-done-msg');
+  doneMsg.style.color = '#2ecc71';
+  doneMsg.style.fontSize = '14px';
+  doneMsg.style.fontWeight = '600';
+  doneMsg.textContent = '✓ Snapshot saved to History!';
+  setTimeout(() => { doneMsg.textContent = ''; }, 2500);
+}
+
+function exportResults() {
+  const data = { anime, results, currentIdx, history };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'anime-rankings-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  flashMsg('manage-msg', '✓ Exported!');
+}
+
+function importFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.anime || data.anime.length < 2) { alert('Invalid file — no anime list found.'); return; }
+      anime = data.anime;
+      results = data.results || {};
+      currentIdx = data.currentIdx || 0;
+      history = data.history || [];
+      saveState();
+      saveHistory();
+      showMain();
+    } catch { alert('Could not read that file.'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function deleteSnap(idx) {
+  history = history.filter((_, i) => i !== idx);
+  saveHistory();
+  renderHistory();
+}
+
+function flashMsg(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = '';
+  setTimeout(() => { el.style.display = 'none'; el.textContent = ''; }, 2500);
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => { el.style.display = 'none'; });
+  const tabEl = document.getElementById('tab-' + tab);
+  if (tabEl) tabEl.style.display = '';
+}
+
+// ── Utility ────────────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+(function init() {
+  history = loadHistory();
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const d = JSON.parse(saved);
+      if (d.anime && d.anime.length >= 2) {
+        anime = d.anime;
+        results = d.results || {};
+        currentIdx = d.currentIdx || 0;
+        showMain();
+        return;
+      }
+    }
+  } catch {}
+  // No saved session — show setup
+  showSetup();
+  initSetup();
+})();
+</script>
+</body>
+</html>

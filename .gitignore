@@ -1,0 +1,13 @@
+# Data files
+*.xlsx
+*.xls
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/

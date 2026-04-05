@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx --version)",
+      "Bash(python3 -c \"import os; print\\(os.getcwd\\(\\)\\)\")",
+      "Bash(cp \"/Users/lisabreinholt/Desktop/Claude/Anime Ranking/anime_rankings.html\" /tmp/anime_rankings.html)",
+      "Bash(/tmp/serve_anime.py:*)"
+    ]
+  }
+}

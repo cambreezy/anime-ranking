@@ -288,16 +288,20 @@
     .lb-loading { text-align:center; color:#6a6a8a; padding:40px 20px; font-size:14px; }
 
     /* H2H table */
-    .h2h-wrap { overflow-x: auto; padding-bottom: 8px; }
+    .h2h-wrap { overflow: auto; max-height: calc(100vh - 220px); padding-bottom: 8px; }
     .h2h-table {
       border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 11px;
     }
     .h2h-table th { padding: 6px 4px; color: #8888aa; font-weight: 600; }
     .h2h-table th.row-header {
-      text-align: left; position: sticky; left: 0; background: #0f0f1a; z-index: 2;
+      text-align: left; position: sticky; left: 0; top: 0;
+      background: #0f0f1a; z-index: 4;
+      box-shadow: 0 0 0 2px #0f0f1a;
     }
     .h2h-table th.col-header {
-      writing-mode: vertical-rl; text-orientation: mixed; height: 90px; white-space: nowrap;
+      writing-mode: vertical-rl; text-orientation: mixed; height: 140px; white-space: nowrap;
+      overflow: hidden; position: sticky; top: 0; background: #0f0f1a; z-index: 3;
+      box-shadow: 0 0 0 2px #0f0f1a;
     }
     .h2h-table td {
       text-align: center; padding: 4px; border-radius: 4px;
@@ -306,6 +310,7 @@
     .h2h-table td.row-label {
       padding: 6px 10px 6px 6px; font-weight: 600; color: #c0c0d8;
       white-space: nowrap; position: sticky; left: 0; background: #0f0f1a; z-index: 1; font-size: 12px;
+      box-shadow: 0 0 0 2px #0f0f1a;
     }
     .h2h-table td.self { background: rgba(255,255,255,0.02); color: #3a3a5a; }
     .h2h-table td.win { background: rgba(46,204,113,0.15); color: #2ecc71; }
@@ -1089,12 +1094,33 @@ function setLbView(view) {
 function renderH2H() {
   if (h2hView === 'global') return;
   const table = document.getElementById('h2h-table');
+
+  // Compute wins per anime
+  const wins = {};
+  anime.forEach(n => wins[n] = 0);
+  Object.values(results).forEach(w => { if (wins[w] !== undefined) wins[w]++; });
+
+  // Build global percentile lookup for tiebreaker
+  const globalPct = {};
+  if (globalLbCache) {
+    globalLbCache.forEach(entry => { globalPct[entry.name.trim().toLowerCase()] = entry.avgPct; });
+  }
+
+  // Sort by wins desc → H2H → global percentile desc
+  const sorted = [...anime].sort((nameA, nameB) => {
+    if (wins[nameB] !== wins[nameA]) return wins[nameB] - wins[nameA];
+    const winner = results[matchupKey(nameA, nameB)];
+    if (winner === nameA) return -1;
+    if (winner === nameB) return 1;
+    return (globalPct[nameB.trim().toLowerCase()] ?? -1) - (globalPct[nameA.trim().toLowerCase()] ?? -1);
+  });
+
   let html = '<thead><tr><th class="row-header"></th>';
-  anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
+  sorted.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
   html += '</tr></thead><tbody>';
-  anime.forEach(row => {
+  sorted.forEach(row => {
     html += `<tr><td class="row-label">${esc(row)}</td>`;
-    anime.forEach(col => {
+    sorted.forEach(col => {
       if (row === col) { html += '<td class="self">—</td>'; return; }
       const k = matchupKey(row, col);
       const winner = results[k];
@@ -1146,13 +1172,44 @@ async function renderGlobalH2H() {
 
   const { counts, numSubmissions } = globalH2HCache;
 
+  // Compute aggregate win rate per anime from H2H counts
+  const winRate = {};
+  anime.forEach(n => { winRate[n] = { won: 0, total: 0 }; });
+  Object.entries(counts).forEach(([key, md]) => {
+    const parts = key.split(' vs ');
+    parts.forEach(name => {
+      if (winRate[name] !== undefined) {
+        winRate[name].total += md.total;
+        winRate[name].won += md.votes[name] || 0;
+      }
+    });
+  });
+
+  // Sort by global win rate desc → H2H → global percentile desc
+  const globalPct = {};
+  if (globalLbCache) {
+    globalLbCache.forEach(entry => { globalPct[entry.name.trim().toLowerCase()] = entry.avgPct; });
+  }
+  const sorted = [...anime].sort((nameA, nameB) => {
+    const rA = winRate[nameA].total > 0 ? winRate[nameA].won / winRate[nameA].total : 0;
+    const rB = winRate[nameB].total > 0 ? winRate[nameB].won / winRate[nameB].total : 0;
+    if (Math.abs(rB - rA) > 1e-9) return rB - rA;
+    const md = counts[matchupKey(nameA, nameB)];
+    if (md && md.total > 0) {
+      const vA = md.votes[nameA] || 0;
+      const vB = md.votes[nameB] || 0;
+      if (vA !== vB) return vB - vA;
+    }
+    return (globalPct[nameB.trim().toLowerCase()] ?? -1) - (globalPct[nameA.trim().toLowerCase()] ?? -1);
+  });
+
   let html = '<thead><tr><th class="row-header"></th>';
-  anime.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
+  sorted.forEach(a => { html += `<th class="col-header">${esc(a)}</th>`; });
   html += '</tr></thead><tbody>';
 
-  anime.forEach(row => {
+  sorted.forEach(row => {
     html += `<tr><td class="row-label">${esc(row)}</td>`;
-    anime.forEach(col => {
+    sorted.forEach(col => {
       if (row === col) { html += '<td class="self">—</td>'; return; }
       const k = matchupKey(row, col);
       const matchupData = counts[k];

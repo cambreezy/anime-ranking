@@ -266,6 +266,27 @@
     }
     .lb-partial { text-align: center; color: #6a6a8a; font-size: 13px; margin-top: 16px; }
 
+    /* Leaderboard toggle */
+    .lb-toggle-wrap { display:flex; justify-content:center; margin-bottom:18px; }
+    .lb-toggle {
+      display:inline-flex; background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.1); border-radius:999px; padding:3px; gap:2px;
+    }
+    .lb-toggle-btn {
+      background:transparent; border:none; color:#6a6a8a; padding:7px 20px;
+      border-radius:999px; font-size:13px; font-weight:600;
+      font-family:'DM Sans',sans-serif; cursor:pointer; transition:all 0.2s;
+    }
+    .lb-toggle-btn.active {
+      background:linear-gradient(135deg,#e74c6f,#3498db); color:#fff;
+      box-shadow:0 2px 10px rgba(231,76,111,0.3);
+    }
+    .lb-toggle-btn:not(.active):hover { color:#c0c0d8; background:rgba(255,255,255,0.07); }
+    .lb-score-global { margin-left:16px; text-align:right; min-width:70px; flex-shrink:0; }
+    .lb-score-pct { font-family:'Bebas Neue',sans-serif; font-size:20px; color:#8888aa; display:block; line-height:1.1; }
+    .lb-score-rankers { font-size:11px; color:#4a4a6a; display:block; margin-top:1px; }
+    .lb-loading { text-align:center; color:#6a6a8a; padding:40px 20px; font-size:14px; }
+
     /* H2H table */
     .h2h-wrap { overflow-x: auto; padding-bottom: 8px; }
     .h2h-table {
@@ -560,6 +581,12 @@
 
       <!-- Tab: Leaderboard -->
       <div id="tab-leaderboard" class="tab-content" style="display:none">
+        <div class="lb-toggle-wrap">
+          <div class="lb-toggle">
+            <button class="lb-toggle-btn active" id="lb-btn-mine" onclick="setLbView('mine')">My Leaderboard</button>
+            <button class="lb-toggle-btn" id="lb-btn-global" onclick="setLbView('global')">Global</button>
+          </div>
+        </div>
         <div id="lb-list" class="lb-list"></div>
         <div id="lb-partial" class="lb-partial" style="display:none"></div>
       </div>
@@ -619,6 +646,8 @@ let lastAction = null;
 let undoTimer = null;
 let manageOpen = false;
 let activeTab = 'community';
+let lbView = 'mine';
+let globalLbCache = null;
 
 const POPULAR_ANIME = [
   "Naruto","Hunter X Hunter","JJK","Attack on Titan","Demon Slayer",
@@ -753,6 +782,16 @@ function saveHistory() {
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
 }
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && Array.isArray(saved.anime) && saved.anime.length >= 2) {
+      anime = saved.anime;
+      results = saved.results || {};
+      currentIdx = saved.currentIdx || 0;
+    }
+  } catch {}
+}
 
 async function loadUserHistoryFromDB() {
   if (!clerkUser) return;
@@ -775,7 +814,7 @@ async function loadUserHistoryFromDB() {
 // ── Screen switching ───────────────────────────────────────────────────────────
 function showMain(tab = 'community') {
   document.getElementById('main-screen').style.display = 'block';
-  saveState();
+  loadState();
   renderAll();
   if (tab === 'community') {
     switchTab('community');
@@ -809,6 +848,28 @@ function computeLeaderboard() {
     if (winner === b.name) return 1;
     return 0;
   });
+}
+
+function computeGlobalLeaderboard(rows) {
+  const complete = rows.filter(r => r.answered === r.total_matchups && r.total_matchups >= 2);
+  const map = {};
+  complete.forEach(row => {
+    const n = row.rankings.length;
+    if (n < 2) return;
+    row.rankings.forEach(entry => {
+      const key = entry.name.trim().toLowerCase();
+      const pct = (n - entry.rank) / (n - 1);
+      if (!map[key]) map[key] = { displayCounts: {}, totalPct: 0, count: 0 };
+      const display = entry.name.trim();
+      map[key].displayCounts[display] = (map[key].displayCounts[display] || 0) + 1;
+      map[key].totalPct += pct;
+      map[key].count += 1;
+    });
+  });
+  return Object.entries(map).map(([, data]) => {
+    const name = Object.entries(data.displayCounts).sort((a, b) => b[1] - a[1])[0][0];
+    return { name, avgPct: data.totalPct / data.count, count: data.count };
+  }).sort((a, b) => b.avgPct - a.avgPct);
 }
 
 // ── Battle ─────────────────────────────────────────────────────────────────────
@@ -918,6 +979,7 @@ function renderBattle(matchups, total, answered, allDone) {
 }
 
 function renderLeaderboard(total, answered) {
+  if (lbView === 'global') return;
   const lb = computeLeaderboard();
   const maxWins = anime.length - 1;
   const el = document.getElementById('lb-list');
@@ -951,6 +1013,68 @@ function renderLeaderboard(total, answered) {
     partial.textContent = '⚠ ' + rem + ' matchup' + (rem > 1 ? 's' : '') + ' remaining — rankings are partial';
   } else {
     partial.style.display = 'none';
+  }
+}
+
+async function renderGlobalLeaderboard() {
+  const el = document.getElementById('lb-list');
+  const partial = document.getElementById('lb-partial');
+  partial.style.display = 'none';
+
+  if (!globalLbCache) {
+    el.innerHTML = '<div class="lb-loading">Loading global rankings…</div>';
+    const { data, error } = await db
+      .from('anime_rankings')
+      .select('rankings, answered, total_matchups');
+    if (error || !data) {
+      el.innerHTML = '<div class="lb-loading">Could not load global rankings.</div>';
+      return;
+    }
+    globalLbCache = computeGlobalLeaderboard(data);
+  }
+
+  const lb = globalLbCache;
+  if (lb.length === 0) {
+    el.innerHTML = '<div class="lb-loading">No completed rankings yet.</div>';
+    return;
+  }
+
+  el.innerHTML = lb.map((entry, i) => {
+    const barColor = i === 0
+      ? 'linear-gradient(90deg,#FFD700,#e74c6f)'
+      : i === 1 ? 'linear-gradient(90deg,#C0C0C0,#8888aa)'
+      : i === 2 ? 'linear-gradient(90deg,#CD7F32,#e67e22)'
+      : 'linear-gradient(90deg,rgba(52,152,219,0.3),#3498db)';
+    const badgeStyle = i === 0
+      ? 'background:#FFD700;color:#1a1a2e;box-shadow:0 2px 8px #FFD70066'
+      : i === 1 ? 'background:#C0C0C0;color:#1a1a2e'
+      : i === 2 ? 'background:#CD7F32;color:#1a1a2e'
+      : 'background:rgba(255,255,255,0.07);color:#8888aa';
+    const badgeContent = i === 0 ? '👑' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+    const barPct = (entry.avgPct * 100).toFixed(1);
+    return `<div class="lb-item${i === 0 ? ' top' : ''}">
+      <span class="rank-badge" style="${badgeStyle}">${badgeContent}</span>
+      <div style="flex:1;min-width:0">
+        <div class="lb-name">${esc(entry.name)}</div>
+        <div class="lb-bar-wrap"><div class="lb-bar" style="width:${barPct}%;background:${barColor}"></div></div>
+      </div>
+      <div class="lb-score-global">
+        <span class="lb-score-pct">${barPct}%</span>
+        <span class="lb-score-rankers">${entry.count} ranker${entry.count !== 1 ? 's' : ''}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setLbView(view) {
+  lbView = view;
+  document.getElementById('lb-btn-mine').classList.toggle('active', view === 'mine');
+  document.getElementById('lb-btn-global').classList.toggle('active', view === 'global');
+  if (view === 'mine') {
+    const matchups = generateMatchups(anime);
+    renderLeaderboard(matchups.length, Object.keys(results).length);
+  } else {
+    renderGlobalLeaderboard();
   }
 }
 
@@ -1153,7 +1277,7 @@ function saveSnapshot() {
     submitter_name: submitterName,
   }).then(({ error }) => {
     if (error) console.error('Could not save to community:', error.message);
-    else loadUserHistoryFromDB().then(() => renderHistory());
+    else { globalLbCache = null; loadUserHistoryFromDB().then(() => renderHistory()); }
   });
 }
 

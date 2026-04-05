@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "anime-rankings",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["serve.py"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "python3 '/Users/lisabreinholt/Desktop/Claude/Anime Ranking/serve.py'"],
       "port": 3456
     }
   ]

@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anime Rankings</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script
-    async
-    crossorigin="anonymous"
-    data-clerk-publishable-key="pk_test_d2FudGVkLWh1c2t5LTUxLmNsZXJrLmFjY291bnRzLmRldiQ"
-    src="https://wanted-husky-51.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
-  ></script>
+  <script src="https://unpkg.com/@clerk/clerk-js@5/dist/clerk.browser.js" crossorigin="anonymous"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0f0f1a; color: #e8e8f0; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
@@ -1200,15 +1195,7 @@ function esc(str) {
 let clerkUser = null;
 
 async function initApp() {
-  // Wait for Clerk to be available (loaded via async script tag)
-  await new Promise(resolve => {
-    if (window.Clerk) return resolve();
-    document.addEventListener('clerk:load', resolve);
-    // Fallback poll in case event already fired
-    const t = setInterval(() => { if (window.Clerk) { clearInterval(t); resolve(); } }, 50);
-  });
-
-  const clerk = window.Clerk;
+  const clerk = new window.Clerk('pk_test_d2FudGVkLWh1c2t5LTUxLmNsZXJrLmFjY291bnRzLmRldiQ');
   await clerk.load();
 
   if (clerk.user) {
